@@ -1,0 +1,14 @@
+xrun -clean
+rm -rf xrun.log
+rm -rf xrun.history
+rm -rf xmls.log
+rm -rf xmelab.args
+rm -rf xmsim.args
+rm -rf xmvlog_ver.args
+rm -rf cds.lib
+rm -rf hdl.var
+rm -rf waves.shm
+rm -rf simvision*
+rm -rf xrun.key
+rm -rf cov_work
+
