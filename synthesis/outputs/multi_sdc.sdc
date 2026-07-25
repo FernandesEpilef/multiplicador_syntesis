@@ -1,6 +1,6 @@
 # ####################################################################
 
-#  Created by Genus(TM) Synthesis Solution 21.19-s055_1 on Fri Jul 24 20:04:18 -03 2026
+#  Created by Genus(TM) Synthesis Solution 21.19-s055_1 on Sat Jul 25 16:41:51 -03 2026
 
 # ####################################################################
 
@@ -12,7 +12,7 @@ set_units -time 1000ps
 # Set the current design
 current_design ex_stage
 
-create_clock -name "clk" -period 2.0 -waveform {0.0 0.5} [get_ports clk_i]
+create_clock -name "clk" -period 4.0 -waveform {0.0 0.5} [get_ports clk_i]
 set_clock_transition 0.1 [get_clocks clk]
 set_load -pin_load 0.01 [get_ports {pc_source_ex_o[1]}]
 set_load -pin_load 0.01 [get_ports {pc_source_ex_o[0]}]

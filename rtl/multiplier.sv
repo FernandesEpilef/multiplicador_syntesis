@@ -41,10 +41,16 @@ module multiplier (
 
 
     always_comb begin
+        in_ready_o = 1'b0;
+        out_valid_o = 1'b0;
+        next_state = state;
         next_resultado = resultado;
+        full_result_signed = '0;
+        full_result_unsigned = '0;
+        abs_a = '0;
         
         case (state)
-            IDLE: begin
+	            IDLE: begin
                 out_valid_o = 1'b0;
                 in_ready_o = 1'b1;
                 if (in_valid_i) begin
@@ -53,13 +59,7 @@ module multiplier (
                     next_state = IDLE;
                 end
             end
-
-        
             MULT: begin
-                full_result_signed = register_a * register_b;
-                next_resultado = full_result_signed[31:0];
-
-            /* -> COMEÇA COMENTARIO
                 case (operation)
                     // 4 Operações RISC-V
                     2'b00: begin
@@ -93,22 +93,24 @@ module multiplier (
                         next_resultado = full_result_unsigned[63:32];
                     end
                 endcase
-
-                -> acaba comentario*/
                 in_ready_o = 1'b0;
                 next_state = RESULT;
             end
-            RESULT: begin
-                out_valid_o = 1'b1;
-                if (out_ready_i) begin
-                    next_state = IDLE;
-                end else begin
-                    next_state = RESULT;
-                end
-            end
-        endcase
+	            RESULT: begin
+	                out_valid_o = 1'b1;
+	                if (out_ready_i) begin
+	                    next_state = IDLE;
+	                end else begin
+	                    next_state = RESULT;
+	                end
+	            end
+	            default: begin
+	                next_state = IDLE;
+	                next_resultado = '0;
+	            end
+	        endcase
 
-    end
+	    end
 
 
     always_ff @(posedge clk or negedge rst_n) begin
