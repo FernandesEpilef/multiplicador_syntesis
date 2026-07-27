@@ -1,141 +1,201 @@
-// ----------------------------------------------------------------------------------------------------
-// DESCRIÇÃO: Módulo multiplicador binário de 32x32bits
-//				- Baseado no algoritmo de multiplicação binária de booth
-//				- Handshake (valid e ready)
-//				- Lógica Combinacional para calcular o valor parcial
-//				- Lógica Sequencial para reset síncrono e controle do módulo
-// ----------------------------------------------------------------------------------------------------
-// RELEASE HISTORY  :
-// DATA                 VERSÃO      AUTOR     				DESCRIÇÃO
-// 2024-12-03           0.14        André Medeiros     	    Versão inicial.
-// ------------------------------------------------------------------------------------------------
-
 module multiplier (
-    input  logic        clk,               
-    input  logic        rst_n,             
-    input  logic [31:0] a,                 
-    input  logic [31:0] b,                 
-    input  logic        in_valid_i,        
+    input  logic        clk,
+    input  logic        rst_n,
+    input  logic [31:0] a,
+    input  logic [31:0] b,
+    input  logic        in_valid_i,
+    input  logic [1:0]  op_sel,
+    input  logic        out_ready_i,
+
+    output logic        out_valid_o,
     output logic        in_ready_o,
-    input  logic [1:0]  op_sel,            
-    input  logic        out_ready_i,        
-    output logic        out_valid_o,       
-    output logic [31:0] resultado         
+    output logic [31:0] resultado
 );
 
-    typedef enum logic [1:0] { IDLE, MULT, RESULT } state_t;
+    // ------------------------------------------------------------
+    // op_sel
+    // 00 = MUL
+    // 01 = MULH
+    // 10 = MULHSU
+    // 11 = MULHU
+    // ------------------------------------------------------------
+
+    typedef enum logic [2:0] {
+        IDLE,
+        MUL,
+        STEP0,
+        STEP1,
+        STEP2,
+        FINISH,
+        RESULT
+    } state_t;
 
     state_t state, next_state;
 
-    logic [31:0] register_a, register_b;
-    logic [31:0] abs_a;
+    // operandos registrados
+    logic [31:0] reg_a, reg_b;
+    logic [1:0]  reg_op;
 
-    logic [1:0] operation;
+    // ------------------------------------------------------------
+    // multiplicador 17x17 reutilizado
+    // ------------------------------------------------------------
+    logic signed [16:0] mul_a, mul_b;
+    logic signed [33:0] mul_out;
 
-    // Registradores internos
-    logic signed   [63:0] full_result_signed;
-    logic unsigned [63:0] full_result_unsigned;
-    logic          valid_reg;
+    assign mul_out = mul_a * mul_b;
 
-    logic [31:0] next_resultado;
+    // ------------------------------------------------------------
+    // registradores de acumulação (estilo CV32E40P)
+    // ------------------------------------------------------------
+    logic signed [33:0] acc_reg, acc_next;
+    logic signed [33:0] part_reg, part_next;
 
+    logic [31:0] result_next;
 
+    // resultado final de 64 bits reconstruído
+    logic signed [63:0] full_result, full_result_next;
+
+    // sinais
+    logic signed_a, signed_b;
+
+    assign signed_a = (reg_op == 2'b01) || (reg_op == 2'b10);
+    assign signed_b = (reg_op == 2'b01);
+
+    // ------------------------------------------------------------
+    // combinacional
+    // ------------------------------------------------------------
     always_comb begin
-        in_ready_o = 1'b0;
+        next_state       = state;
+        acc_next         = acc_reg;
+        part_next        = part_reg;
+        full_result_next = full_result;
+        result_next      = resultado;
+
         out_valid_o = 1'b0;
-        next_state = state;
-        next_resultado = resultado;
-        full_result_signed = '0;
-        full_result_unsigned = '0;
-        abs_a = '0;
-        
+        in_ready_o  = 1'b0;
+
+        mul_a = '0;
+        mul_b = '0;
+
         case (state)
-	            IDLE: begin
-                out_valid_o = 1'b0;
+
+            // ----------------------------------------------------
+            IDLE: begin
                 in_ready_o = 1'b1;
+
                 if (in_valid_i) begin
-                    next_state = MULT;
-                end else begin
-                    next_state = IDLE;
+                    if (op_sel == 2'b00)
+                        next_state = MUL;
+                    else
+                        next_state = STEP0;
                 end
             end
-            MULT: begin
-                case (operation)
-                    // 4 Operações RISC-V
-                    2'b00: begin
-                        full_result_signed = register_a * register_b;
-                        next_resultado = full_result_signed[31:0];
-                    end
-                    2'b01: begin 
-                        full_result_signed = (signed'(register_a) * signed'(register_b));
-                        next_resultado = full_result_signed[63:32];
-                    end
-                    2'b10: begin //MULHSU
-                        
-                        if (register_a[31] == 1'b1) begin
-                            abs_a = ~register_a + 1; // Complemento de dois para negativo
-                        end else begin
-                            abs_a = register_a;     // Já é positivo
-                        end
-                        
-                        full_result_signed = abs_a * $unsigned(register_b);
-                        
-                        if (register_a[31] == 1'b1) begin
-                            full_result_signed = ~full_result_signed + 1; // Complemento de dois para ajustar o sinal
-                        end else begin
-                            full_result_signed = full_result_signed;      // Já é positivo
-                        end
-                        
-                        next_resultado = full_result_signed[63:32];
-                    end
-                    2'b11: begin
-                        full_result_unsigned = (unsigned'(register_a) * unsigned'(register_b));
-                        next_resultado = full_result_unsigned[63:32];
-                    end
-                endcase
-                in_ready_o = 1'b0;
+
+            // ----------------------------------------------------
+            // MUL = 1 ciclo
+            // ----------------------------------------------------
+            MUL: begin
+                result_next = (reg_a * reg_b);
+                next_state  = RESULT;
+            end
+
+            // ----------------------------------------------------
+            // STEP0 : AL * BL
+            // ----------------------------------------------------
+            STEP0: begin
+                mul_a = {1'b0, reg_a[15:0]};
+                mul_b = {1'b0, reg_b[15:0]};
+
+                acc_next         = mul_out;
+                full_result_next = {{30{1'b0}}, mul_out};
+
+                next_state = STEP1;
+            end
+
+            // ----------------------------------------------------
+            // STEP1 : AL * BH
+            // ----------------------------------------------------
+            STEP1: begin
+                mul_a = {1'b0, reg_a[15:0]};
+                mul_b = {signed_b & reg_b[31], reg_b[31:16]};
+
+                part_next = mul_out;
+                next_state = STEP2;
+            end
+
+            // ----------------------------------------------------
+            // STEP2 : AH * BL
+            // ----------------------------------------------------
+            STEP2: begin
+                mul_a = {signed_a & reg_a[31], reg_a[31:16]};
+                mul_b = {1'b0, reg_b[15:0]};
+
+                acc_next = acc_reg + part_reg + mul_out;
+
+                full_result_next =
+                    full_result +
+                    ($signed(part_reg) <<< 16) +
+                    ($signed(mul_out)  <<< 16);
+
+                next_state = FINISH;
+            end
+
+            // ----------------------------------------------------
+            // FINISH : AH * BH
+            // ----------------------------------------------------
+            FINISH: begin
+                mul_a = {signed_a & reg_a[31], reg_a[31:16]};
+                mul_b = {signed_b & reg_b[31], reg_b[31:16]};
+
+                full_result_next =
+                    full_result +
+                    ($signed(mul_out) <<< 32);
+
+                result_next = full_result_next[63:32];
+
                 next_state = RESULT;
             end
-	            RESULT: begin
-	                out_valid_o = 1'b1;
-	                if (out_ready_i) begin
-	                    next_state = IDLE;
-	                end else begin
-	                    next_state = RESULT;
-	                end
-	            end
-	            default: begin
-	                next_state = IDLE;
-	                next_resultado = '0;
-	            end
-	        endcase
 
-	    end
+            // ----------------------------------------------------
+            RESULT: begin
+                out_valid_o = 1'b1;
 
+                if (out_ready_i)
+                    next_state = IDLE;
+            end
 
+            default: next_state = IDLE;
+        endcase
+    end
+
+    // ------------------------------------------------------------
+    // sequencial
+    // ------------------------------------------------------------
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            state <= IDLE;
-            resultado <= 32'b0;
-            register_a <= 32'b0;
-            register_b <= 32'b0;
-            operation <= 2'b00;
+            state       <= IDLE;
+            reg_a       <= '0;
+            reg_b       <= '0;
+            reg_op      <= '0;
+            acc_reg     <= '0;
+            part_reg    <= '0;
+            full_result <= '0;
+            resultado   <= '0;
+
         end else begin
-            resultado <= next_resultado;
-            case (state)
-                IDLE: begin
-                    register_a <= a;
-                    register_b <= b;
-                    operation <= op_sel;
-                    state <= next_state;
-                end
-                MULT: begin
-                    state <= next_state;
-                end
-                RESULT: begin
-                    state <= next_state;
-                end
-            endcase
+            state       <= next_state;
+            acc_reg     <= acc_next;
+            part_reg    <= part_next;
+            full_result <= full_result_next;
+            resultado   <= result_next;
+
+            // captura operandos
+            if (state == IDLE && in_valid_i) begin
+                reg_a  <= a;
+                reg_b  <= b;
+                reg_op <= op_sel;
+            end
         end
     end
+
 endmodule

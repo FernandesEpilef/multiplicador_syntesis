@@ -3,7 +3,7 @@ set_db init_hdl_search_path ../rtl/
 read_libs slow_vdd1v0_basicCells.lib
 
 read_hdl -sv core_pkg.sv fp_new.sv mutipli_fh.sv ex_stage.sv
-elaborate
+elaborate multiplier
 read_sdc ../constraints/constraints_top.sdc
 
 set_db design_process_node 65

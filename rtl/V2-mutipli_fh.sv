@@ -1,3 +1,5 @@
+// COLOCANDO O MUL DENTRO DA FSM
+
 module multiplier (
     input  logic        clk,
     input  logic        rst_n,
@@ -48,19 +50,12 @@ module multiplier (
             IDLE: begin
                 in_ready_o = 1'b1;
                 if (in_valid_i) begin
-                    if (op_sel == 2'b00) begin
-                        next_state = MUL;
-                    end else begin
-                        next_state = MULT_0;
-                    end
+                    // TODAS as instruções vão para MULT_0 agora.
+                    // O desvio combinacional para MUL foi removido.
+                    next_state = MULT_0;
                 end
             end
-
-            MUL: begin
-                next_resultado = register_a * register_b;
-                next_state = RESULT;
-            end
-
+            // O estado MUL isolado foi completamente deletado!
             MULT_0: begin
                 // P0 = A_L (sem sinal) * B_L (sem sinal)
                 mul_x = {1'b0, register_a[15:0]};
@@ -68,46 +63,44 @@ module multiplier (
                 next_acumulador = {30'd0, mul_out};
                 next_state = MULT_1;
             end
-
             MULT_1: begin
-                // P1 = A_H (sinal/sem) * B_L (sem snal)
+                // P1 = A_H (sinal/sem sinal) * B_L (sem sinal)
                 mul_x = {(sinal_a & register_a[31]), register_a[31:16]};
                 mul_y = {1'b0, register_b[15:0]};
-
-                // soma desolcando 16 bits
-                next_acumulador = acumulador + { {14{mul_out[33]}}, mul_out, 16'd0};
+                // soma deslocando 16 bits e estendendo o sinal para 64 bits
+                next_acumulador = acumulador + { {14{mul_out[33]}}, mul_out, 16'd0 };
                 next_state = MULT_2;
             end
-
             MULT_2: begin
-                // P2 = A_L (nao sinal) * B_H (sinal/nao sinal)
+                // P2 = A_L (sem sinal) * B_H (sinal/sem sinal)
                 mul_x = {1'b0, register_a[15:0]};
-                mul_y = {sinal_b & register_b[31], register_b[31:16]};
-
-                // descola 16 bits e extende sinal
-                next_acumulador = acumulador + { {14{mul_out[33]}}, mul_out, 16'd0};
+                mul_y = {(sinal_b & register_b[31]), register_b[31:16]};
+                // soma deslocando 16 bits e estendendo o sinal para 64 bits
+                next_acumulador = acumulador + { {14{mul_out[33]}}, mul_out, 16'd0 };
                 next_state = MULT_3;
             end
-
             MULT_3: begin
-                // P3 = A_H (sinal/nao sinal) * B_H (sinal/nao sinal)
+                // P3 = A_H (sinal/sem sinal) * B_H (sinal/sem sinal)
                 mul_x = {(sinal_a & register_a[31]), register_a[31:16]};
                 mul_y = {(sinal_b & register_b[31]), register_b[31:16]};
-
-                // descola 32 bits
+                // soma deslocando 32 bits
                 next_acumulador = acumulador + {mul_out[31:0], 32'd0};
+                // SELEÇÃO DO RESULTADO: 
+                // Se for MUL, pega a parte baixa. Se for variação de MULH, pega a parte alta.
+                if (op_sel == 2'b00) begin
+                    next_resultado = next_acumulador[31:0];
+                end else begin
+                    next_resultado = next_acumulador[63:32];
+                end
 
-                next_resultado = next_acumulador[63:32];
                 next_state = RESULT;
             end
-
             RESULT: begin
                 out_valid_o = 1'b1;
                 if (out_ready_i) begin
                     next_state = IDLE;
                 end
             end
-
             default: next_state = IDLE;
         endcase
     end

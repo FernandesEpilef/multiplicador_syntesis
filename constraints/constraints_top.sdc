@@ -1,5 +1,5 @@
 # coloca 3.0 ns para forçar
-create_clock -name clk -period 4.0 -waveform {0 0.5} [get_ports clk]
+create_clock -name clk -period 2.0 -waveform {0 0.5} [get_ports clk]
 
 # para 2.0 ns, que é 500 MHz, dá uma violação de slack de -452 ps
 
