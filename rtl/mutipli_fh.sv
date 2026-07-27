@@ -1,5 +1,5 @@
 module multiplier (
-    input  logic        clk_i,
+    input  logic        clk,
     input  logic        rst_n,
     input  logic [31:0] a,
     input  logic [31:0] b,
@@ -7,8 +7,8 @@ module multiplier (
     input  logic [1:0]  op_sel,
     input  logic        out_ready_i,
     
-    output logic        in_valid_o,
-    output logic        out_ready_o,
+    output logic        out_valid_o,
+    output logic        in_ready_o,
     output logic [31:0] resultado
 );
     typedef enum logic [2:0] {IDLE, MUL, MULT_0,
@@ -29,8 +29,8 @@ module multiplier (
     assign sinal_b = (operation == 2'b01);
 
     // multiplicador 17x17; bit extra para o sinal
-    logic sinal [16:0] mul_x, mul_y;
-    logic sinal [33:0] mul_out;
+    logic signed [16:0] mul_x, mul_y;
+    logic signed [33:0] mul_out;
     assign mul_out = mul_x * mul_y;
 
     always_comb begin
@@ -58,7 +58,7 @@ module multiplier (
 
             MUL: begin
                 next_resultado = register_a * register_b;
-                next_resultado = RESULT;
+                next_state = RESULT;
             end
 
             MULT_0: begin
@@ -112,7 +112,7 @@ module multiplier (
         endcase
     end
 
-    always_ff @(posedge clk_i or negedge rst_n) begin
+    always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state      <= IDLE;
             resultado  <= 32'b0;

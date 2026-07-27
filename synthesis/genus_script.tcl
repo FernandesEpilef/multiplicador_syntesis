@@ -2,7 +2,7 @@ set_db init_lib_search_path ../lib/
 set_db init_hdl_search_path ../rtl/
 read_libs slow_vdd1v0_basicCells.lib
 
-read_hdl -sv core_pkg.sv fp_new.sv multiplier.sv ex_stage.sv
+read_hdl -sv core_pkg.sv fp_new.sv mutipli_fh.sv ex_stage.sv
 elaborate
 read_sdc ../constraints/constraints_top.sdc
 

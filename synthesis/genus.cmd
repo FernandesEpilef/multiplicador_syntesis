@@ -1,7 +1,0 @@
-# Cadence Genus(TM) Synthesis Solution, Version 21.19-s055_1, built May 29 2024 16:33:07
-
-# Date: Sat Jul 25 16:30:47 2026
-# Host: xmen12 (x86_64 w/Linux 4.18.0-553.58.1.el8_10.x86_64) (24cores*32cpus*1physical cpu*Intel(R) Core(TM) i9-14900F 36864KB)
-# OS:   Rocky Linux release 8.10 (Green Obsidian)
-
-source genus_script.tcl
